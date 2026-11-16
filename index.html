@@ -112,14 +112,6 @@
   <div class="news-grid" id="news-container"></div>
 
   <script>
-    const RSS_URL = 'https://news.yahoo.co.jp/rss/topics/top-picks.xml';
-
-    // 複数のCORSプロキシを順番に試すリスト（冗長化）
-    const PROXIES = [
-      url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-      url => `https://corsproxy.io/?${encodeURIComponent(url)}`
-    ];
-
     const NO_IMAGE_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="110" height="82" viewBox="0 0 110 82">
         <rect width="110" height="82" fill="#161b26"/>
@@ -127,26 +119,94 @@
       </svg>
     `);
 
-    async function fetchXMLWithFallback(targetUrl) {
-      for (const buildProxyUrl of PROXIES) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
-          // キャッシュ回避用のタイムスタンプを付与
-          const fetchUrl = buildProxyUrl(`${targetUrl}?t=${Date.now()}`);
-          const response = await fetch(fetchUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
+    async function fetchYahooNews() {
+      const container = document.getElementById('news-container');
+      const statusEl = document.getElementById('update-status');
 
-          if (!response.ok) continue;
-
-          // alloriginsはJSON形式(.contents)、corsproxy.ioはXMLテキストを直接返す
-          const text = await response.text();
-          if (text.trim().startsWith('{')) {
-            const json = JSON.parse(text);
-            if (json.contents) return json.contents;
-          } else if (text.includes('<rss')) {
-            return text;
-          }
-        } catch (e) {
-          console.warn('プロキシ取得失敗、次を試行します:', e);
+      try {
+        // 同じリポジトリ内の news.xml を直接取得（キャッシュ回避付き）
+        const response = await fetch(`./news.xml?t=${Date.now()}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status} (news.xmlが未生成の可能性があります)`);
         }
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = Array.from(xmlDoc.querySelectorAll('item')).slice(0, 8);
+
+        if (items.length === 0) {
+          throw new Error('記事データが空です');
+        }
+
+        container.innerHTML = '';
+
+        items.forEach(item => {
+          const title = item.querySelector('title')?.textContent || 'タイトルなし';
+          const link = item.querySelector('link')?.textContent || '#';
+          const pubDateRaw = item.querySelector('pubDate')?.textContent || '';
+          const description = item.querySelector('description')?.textContent || '';
+
+          let imgUrl = item.querySelector('image')?.textContent
+                    || item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url')
+                    || item.querySelector('enclosure')?.getAttribute('url')
+                    || '';
+
+          if (!imgUrl && description) {
+            const match = description.match(/<img[^>]+src="([^">]+)"/);
+            if (match) imgUrl = match[1];
+          }
+
+          if (!imgUrl) {
+            imgUrl = NO_IMAGE_SVG;
+          }
+
+          const pubDate = new Date(pubDateRaw);
+          const timeStr = isNaN(pubDate)
+            ? ''
+            : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
+
+          const card = document.createElement('a');
+          card.className = 'news-card';
+          card.href = link;
+          card.target = '_blank';
+          card.rel = 'noopener noreferrer';
+
+          card.innerHTML = `
+            <img class="news-thumb" src="${imgUrl}" alt="" onerror="this.src='${NO_IMAGE_SVG}'">
+            <div class="news-info">
+              <div class="news-title">${escapeHTML(title)}</div>
+              <div class="news-date">${timeStr}</div>
+            </div>
+          `;
+
+          container.appendChild(card);
+        });
+
+        const now = new Date();
+        statusEl.textContent = `Updated: ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = 'Error';
+        container.innerHTML = `<div style="color:#ff5555; font-size:13px; grid-column: span 2;">
+          ${escapeHTML(error.message)}
+        </div>`;
+      }
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, match => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[match]));
+    }
+
+    fetchYahooNews();
+    setInterval(fetchYahooNews, 15 * 60 * 1000);
+  </script>
+</body>
+</html>
