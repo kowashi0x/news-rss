@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Cyber Calendar & Clock</title>
+  <style>
+    body {
+      background: #050508;
+      color: #fff;
+      font-family: 'Segoe UI', 'Meiryo', sans-serif;
+      margin: 0;
+      padding: 16px;
+      width: 920px;
+      height: 600px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #00f0ff;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      height: 32px;
+      flex-shrink: 0;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 16px;
+      color: #00f0ff;
+      letter-spacing: 1px;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #8892b0;
+    }
+
+    .news-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 10px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .news-card {
+      display: flex;
+      align-items: center;
+      background: #0d1017;
+      border: 1px solid #1e2638;
+      border-radius: 6px;
+      padding: 8px;
+      text-decoration: none;
+      color: #e6f1ff;
+      transition: border-color 0.2s, background 0.2s;
+      overflow: hidden;
+    }
+
+    .news-card:hover {
+      border-color: #00f0ff;
+      background: #131824;
+    }
+
+    .news-thumb {
+      width: 110px;
+      height: 82px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-right: 12px;
+      flex-shrink: 0;
+      background: #1a2030;
+    }
+
+    .news-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .news-title {
+      font-size: 13px;
+      font-weight: bold;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .news-date {
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>YAHOO! NEWS TOPICS</h2>
+    <span class="status" id="update-status">Loading...</span>
+  </div>
+
+  <div class="news-grid" id="news-container"></div>
+
+  <script>
+    const RSS_URL = 'https://news.yahoo.co.jp/rss/topics/top-picks.xml';
+
+    // 複数のCORSプロキシを順番に試すリスト（冗長化）
+    const PROXIES = [
+      url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+      url => `https://corsproxy.io/?${encodeURIComponent(url)}`
+    ];
+
+    const NO_IMAGE_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="110" height="82" viewBox="0 0 110 82">
+        <rect width="110" height="82" fill="#161b26"/>
+        <text x="50%" y="50%" fill="#475569" font-size="11" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">NO IMAGE</text>
+      </svg>
+    `);
+
+    async function fetchXMLWithFallback(targetUrl) {
+      for (const buildProxyUrl of PROXIES) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          // キャッシュ回避用のタイムスタンプを付与
+          const fetchUrl = buildProxyUrl(`${targetUrl}?t=${Date.now()}`);
+          const response = await fetch(fetchUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) continue;
+
+          // alloriginsはJSON形式(.contents)、corsproxy.ioはXMLテキストを直接返す
+          const text = await response.text();
+          if (text.trim().startsWith('{')) {
+            const json = JSON.parse(text);
+            if (json.contents) return json.contents;
+          } else if (text.includes('<rss')) {
+            return text;
+          }
+        } catch (e) {
+          console.warn('プロキシ取得失敗、次を試行します:', e);
+        }
