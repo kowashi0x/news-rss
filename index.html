@@ -26,27 +26,28 @@
       border-bottom: 1px solid #00f0ff;
       padding-bottom: 8px;
       margin-bottom: 12px;
-      height: 32px;
+      height: 36px;
       flex-shrink: 0;
     }
 
     .header h2 {
       margin: 0;
-      font-size: 16px;
+      font-size: 20px;
       color: #00f0ff;
       letter-spacing: 1px;
     }
 
     .status {
-      font-size: 12px;
+      font-size: 14px;
       color: #8892b0;
     }
 
+    /* 1列 × 4行に変更 */
     .news-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
       grid-template-rows: repeat(4, 1fr);
-      gap: 10px;
+      gap: 12px;
       flex: 1;
       overflow: hidden;
     }
@@ -56,8 +57,8 @@
       align-items: center;
       background: #0d1017;
       border: 1px solid #1e2638;
-      border-radius: 6px;
-      padding: 8px;
+      border-radius: 8px;
+      padding: 10px 14px;
       text-decoration: none;
       color: #e6f1ff;
       transition: border-color 0.2s, background 0.2s;
@@ -69,12 +70,13 @@
       background: #131824;
     }
 
+    /* カード高さに合わせてサムネイルも拡大 */
     .news-thumb {
-      width: 110px;
-      height: 82px;
+      width: 140px;
+      height: 100px;
       object-fit: cover;
-      border-radius: 4px;
-      margin-right: 12px;
+      border-radius: 6px;
+      margin-right: 18px;
       flex-shrink: 0;
       background: #1a2030;
     }
@@ -87,18 +89,20 @@
       overflow: hidden;
     }
 
+    /* タイトル文字を大きく調整（横幅が広いため2行まで表示） */
     .news-title {
-      font-size: 13px;
+      font-size: 22px;
       font-weight: bold;
-      line-height: 1.4;
+      line-height: 1.35;
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
 
+    /* 日時表示も拡大 */
     .news-date {
-      font-size: 11px;
+      font-size: 14px;
       color: #64748b;
     }
   </style>
@@ -114,9 +118,9 @@
 
   <script>
     const NO_IMAGE_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="110" height="82" viewBox="0 0 110 82">
-        <rect width="110" height="82" fill="#161b26"/>
-        <text x="50%" y="50%" fill="#475569" font-size="11" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">NO IMAGE</text>
+      <svg xmlns="http://www.w3.org/2000/svg" width="140" height="100" viewBox="0 0 140 100">
+        <rect width="140" height="100" fill="#161b26"/>
+        <text x="50%" y="50%" fill="#475569" font-size="13" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">NO IMAGE</text>
       </svg>
     `);
 
@@ -137,7 +141,8 @@
 
         container.innerHTML = '';
 
-        items.forEach(item => {
+        // 4行分（先頭4件）のみ描画
+        items.slice(0, 4).forEach(item => {
           const imgUrl = item.image || NO_IMAGE_SVG;
           const pubDate = new Date(item.pubDate);
           const timeStr = isNaN(pubDate)
@@ -167,7 +172,7 @@
       } catch (error) {
         console.error(error);
         statusEl.textContent = 'Error';
-        container.innerHTML = `<div style="color:#ff5555; font-size:13px; grid-column: span 2;">
+        container.innerHTML = `<div style="color:#ff5555; font-size:16px;">
           ${escapeHTML(error.message)}
         </div>`;
       }
