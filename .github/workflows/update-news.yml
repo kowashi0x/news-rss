@@ -2,7 +2,7 @@ name: Update Yahoo News JSON
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -14,50 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Yahoo News RSS and OGP Images
-        run: |
-          python3 - << 'EOF'
-          import urllib.request
-          import xml.etree.ElementTree as ET
-          import re
-          import json
+      - name: Fetch Yahoo News JSON
+        run: python3 -c "import urllib.request, xml.etree.ElementTree as ET, re, json; root = ET.fromstring(urllib.request.urlopen(urllib.request.Request('https://news.yahoo.co.jp/rss/topics/top-picks.xml', headers={'User-Agent': 'Mozilla/5.0'}), timeout=10).read()); items = []; [items.append({'title': i.findtext('title',''), 'link': i.findtext('link',''), 'pubDate': i.findtext('pubDate',''), 'image': (re.search(r'og:image[\"\'][^>]+content=[\"\']([^\"\']+)', urllib.request.urlopen(urllib.request.Request(i.findtext('link',''), headers={'User-Agent': 'Mozilla/5.0'}), timeout=10).read().decode('utf-8', 'ignore')) or [None, ''])[1]}) for i in root.findall('.//item')[:8]]; open('news.json', 'w', encoding='utf-8').write(json.dumps(items, ensure_ascii=False, indent=2))"
 
-          rss_url = "https://news.yahoo.co.jp/rss/topics/top-picks.xml"
-          req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0"})
-          xml_data = urllib.request.urlopen(req, timeout=10).read()
-          root = ET.fromstring(xml_data)
-
-          articles = []
-          for item in root.findall(".//item")[:8]:
-              title = item.findtext("title", "")
-              link = item.findtext("link", "")
-              pub_date = item.findtext("pubDate", "")
-              image_url = ""
-
-              try:
-                  art_req = urllib.request.Request(link, headers={"User-Agent": "Mozilla/5.0"})
-                  html = urllib.request.urlopen(art_req, timeout=10).read().decode("utf-8", errors="ignore")
-                  # OGP画像（og:image）を抽出
-                  m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
-                  if not m:
-                      m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
-                  if m:
-                      image_url = m.group(1)
-              except Exception:
-                  pass
-
-              articles.append({
-                  "title": title,
-                  "link": link,
-                  "pubDate": pub_date,
-                  "image": image_url
-              })
-
-          with open("news.json", "w", encoding="utf-8") as f:
-              json.dump(articles, f, ensure_ascii=False, indent=2)
-          EOF
-
-      - name: Commit and push if changed
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
