@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <title>Cyber Calendar & Clock</title>
   <style>
     body {
@@ -124,58 +125,35 @@
       const statusEl = document.getElementById('update-status');
 
       try {
-        // 同じリポジトリ内の news.xml を直接取得（キャッシュ回避付き）
-        const response = await fetch(`./news.xml?t=${Date.now()}`);
+        const response = await fetch(`./news.json?t=${Date.now()}`);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status} (news.xmlが未生成の可能性があります)`);
+          throw new Error(`HTTP ${response.status} (news.jsonが未生成です)`);
         }
 
-        const xmlText = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-        const items = Array.from(xmlDoc.querySelectorAll('item')).slice(0, 8);
-
-        if (items.length === 0) {
+        const items = await response.json();
+        if (!Array.isArray(items) || items.length === 0) {
           throw new Error('記事データが空です');
         }
 
         container.innerHTML = '';
 
         items.forEach(item => {
-          const title = item.querySelector('title')?.textContent || 'タイトルなし';
-          const link = item.querySelector('link')?.textContent || '#';
-          const pubDateRaw = item.querySelector('pubDate')?.textContent || '';
-          const description = item.querySelector('description')?.textContent || '';
-
-          let imgUrl = item.querySelector('image')?.textContent
-                    || item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url')
-                    || item.querySelector('enclosure')?.getAttribute('url')
-                    || '';
-
-          if (!imgUrl && description) {
-            const match = description.match(/<img[^>]+src="([^">]+)"/);
-            if (match) imgUrl = match[1];
-          }
-
-          if (!imgUrl) {
-            imgUrl = NO_IMAGE_SVG;
-          }
-
-          const pubDate = new Date(pubDateRaw);
+          const imgUrl = item.image || NO_IMAGE_SVG;
+          const pubDate = new Date(item.pubDate);
           const timeStr = isNaN(pubDate)
             ? ''
             : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
 
           const card = document.createElement('a');
           card.className = 'news-card';
-          card.href = link;
+          card.href = item.link || '#';
           card.target = '_blank';
           card.rel = 'noopener noreferrer';
 
           card.innerHTML = `
             <img class="news-thumb" src="${imgUrl}" alt="" onerror="this.src='${NO_IMAGE_SVG}'">
             <div class="news-info">
-              <div class="news-title">${escapeHTML(title)}</div>
+              <div class="news-title">${escapeHTML(item.title || '')}</div>
               <div class="news-date">${timeStr}</div>
             </div>
           `;
