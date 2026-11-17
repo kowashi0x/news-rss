@@ -42,6 +42,7 @@
       color: #8892b0;
     }
 
+    /* 1列 × 4行レイアウト */
     .news-grid {
       display: grid;
       grid-template-columns: 1fr;
@@ -56,8 +57,9 @@
       align-items: center;
       background: #0d1017;
       border: 1px solid #1e2638;
+      border-left: 4px solid #00f0ff;
       border-radius: 8px;
-      padding: 10px 14px;
+      padding: 12px 18px;
       text-decoration: none;
       color: #e6f1ff;
       transition: border-color 0.2s, background 0.2s;
@@ -69,26 +71,18 @@
       background: #131824;
     }
 
-    .news-thumb {
-      width: 140px;
-      height: 100px;
-      object-fit: cover;
-      border-radius: 6px;
-      margin-right: 18px;
-      flex-shrink: 0;
-      background: #1a2030;
-    }
-
     .news-info {
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       height: 100%;
+      width: 100%;
       overflow: hidden;
     }
 
+    /* サムネなしに合わせて文字サイズを少し拡大 */
     .news-title {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: bold;
       line-height: 1.35;
       display: -webkit-box;
@@ -113,35 +107,32 @@
   <div class="news-grid" id="news-container"></div>
 
   <script>
-    const NO_IMAGE_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="140" height="100" viewBox="0 0 140 100">
-        <rect width="140" height="100" fill="#161b26"/>
-        <text x="50%" y="50%" fill="#475569" font-size="13" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">NO IMAGE</text>
-      </svg>
-    `);
+    const RSS_URL = 'https://news.yahoo.co.jp/rss/topics/top-picks.xml';
+    const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(RSS_URL)}`;
 
     async function fetchYahooNews() {
       const container = document.getElementById('news-container');
       const statusEl = document.getElementById('update-status');
 
       try {
-        const response = await fetch(`./news.json?t=${Date.now()}`);
+        const response = await fetch(`${API_URL}&t=${Date.now()}`);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status} (news.jsonが未生成です)`);
+          throw new Error(`HTTP ${response.status}`);
         }
 
-        const items = await response.json();
-        if (!Array.isArray(items) || items.length === 0) {
-          throw new Error('記事データが空です');
+        const data = await response.json();
+        if (data.status !== 'ok' || !Array.isArray(data.items) || data.items.length === 0) {
+          throw new Error('RSSデータの取得に失敗しました');
         }
 
         container.innerHTML = '';
 
-        items.slice(0, 4).forEach(item => {
-          const imgUrl = item.image || NO_IMAGE_SVG;
-          const pubDate = new Date(item.pubDate);
+        // 先頭4件を描画
+        data.items.slice(0, 4).forEach(item => {
+          // UTC文字列を日本時間としてパース
+          const pubDate = new Date(item.pubDate.replace(' ', 'T') + 'Z');
           const timeStr = isNaN(pubDate)
-            ? ''
+            ? item.pubDate
             : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
 
           const card = document.createElement('a');
@@ -151,10 +142,9 @@
           card.rel = 'noopener noreferrer';
 
           card.innerHTML = `
-            <img class="news-thumb" src="${imgUrl}" alt="" onerror="this.src='${NO_IMAGE_SVG}'">
             <div class="news-info">
               <div class="news-title">${escapeHTML(item.title || '')}</div>
-              <div class="news-date">${timeStr}</div>
+              <div class="news-date">${escapeHTML(timeStr)}</div>
             </div>
           `;
 
@@ -184,7 +174,7 @@
     }
 
     fetchYahooNews();
-    // 30分（30 * 60 * 1000ミリ秒）ごとに更新
+    // 30分ごとに更新（10分おきにしたい場合は 30 を 10 に変更）
     setInterval(fetchYahooNews, 30 * 60 * 1000);
   </script>
 </body>
