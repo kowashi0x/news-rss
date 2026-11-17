@@ -80,7 +80,6 @@
       overflow: hidden;
     }
 
-    /* サムネなしに合わせて文字サイズを少し拡大 */
     .news-title {
       font-size: 24px;
       font-weight: bold;
@@ -108,42 +107,67 @@
 
   <script>
     const RSS_URL = 'https://news.yahoo.co.jp/rss/topics/top-picks.xml';
-    const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(RSS_URL)}`;
+
+    // 複数の無料CORSプロキシを順番に試してXMLを直接取得する
+    async function fetchRSSXml(targetUrl) {
+      const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&_=${Date.now()}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+      ];
+
+      let lastError = null;
+      for (const proxyUrl of proxies) {
+        try {
+          const res = await fetch(proxyUrl);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          if (text.includes('<item>')) {
+            return text;
+          }
+          throw new Error('XMLデータの形式が不正です');
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      throw lastError || new Error('RSSの取得に失敗しました');
+    }
 
     async function fetchYahooNews() {
       const container = document.getElementById('news-container');
       const statusEl = document.getElementById('update-status');
 
       try {
-        const response = await fetch(`${API_URL}&t=${Date.now()}`);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+        const xmlText = await fetchRSSXml(RSS_URL);
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = Array.from(xmlDoc.querySelectorAll('item'));
 
-        const data = await response.json();
-        if (data.status !== 'ok' || !Array.isArray(data.items) || data.items.length === 0) {
-          throw new Error('RSSデータの取得に失敗しました');
+        if (items.length === 0) {
+          throw new Error('記事データが見つかりません');
         }
 
         container.innerHTML = '';
 
         // 先頭4件を描画
-        data.items.slice(0, 4).forEach(item => {
-          // UTC文字列を日本時間としてパース
-          const pubDate = new Date(item.pubDate.replace(' ', 'T') + 'Z');
+        items.slice(0, 4).forEach(item => {
+          const title = item.querySelector('title')?.textContent || '';
+          const link = item.querySelector('link')?.textContent || '#';
+          const pubDateRaw = item.querySelector('pubDate')?.textContent || '';
+
+          const pubDate = new Date(pubDateRaw);
           const timeStr = isNaN(pubDate)
-            ? item.pubDate
+            ? pubDateRaw
             : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
 
           const card = document.createElement('a');
           card.className = 'news-card';
-          card.href = item.link || '#';
+          card.href = link;
           card.target = '_blank';
           card.rel = 'noopener noreferrer';
 
           card.innerHTML = `
             <div class="news-info">
-              <div class="news-title">${escapeHTML(item.title || '')}</div>
+              <div class="news-title">${escapeHTML(title)}</div>
               <div class="news-date">${escapeHTML(timeStr)}</div>
             </div>
           `;
