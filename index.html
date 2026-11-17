@@ -106,68 +106,42 @@
   <div class="news-grid" id="news-container"></div>
 
   <script>
-    const RSS_URL = 'https://news.yahoo.co.jp/rss/topics/top-picks.xml';
-
-    // 複数の無料CORSプロキシを順番に試してXMLを直接取得する
-    async function fetchRSSXml(targetUrl) {
-      const proxies = [
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&_=${Date.now()}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
-      ];
-
-      let lastError = null;
-      for (const proxyUrl of proxies) {
-        try {
-          const res = await fetch(proxyUrl);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const text = await res.text();
-          if (text.includes('<item>')) {
-            return text;
-          }
-          throw new Error('XMLデータの形式が不正です');
-        } catch (e) {
-          lastError = e;
-        }
-      }
-      throw lastError || new Error('RSSの取得に失敗しました');
-    }
+    // ★ここの「ここにコピーしたURLを貼り付け」をGASのURLに書き換える
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyO6AwkRjyHI99_6D4DTsT_eQb_jsTe53W0Yte-wsdGg1kQTAkB6SDxT69dpSC6MLWA2Q/exec';
 
     async function fetchYahooNews() {
       const container = document.getElementById('news-container');
       const statusEl = document.getElementById('update-status');
 
       try {
-        const xmlText = await fetchRSSXml(RSS_URL);
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-        const items = Array.from(xmlDoc.querySelectorAll('item'));
+        const response = await fetch(GAS_API_URL);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
 
-        if (items.length === 0) {
-          throw new Error('記事データが見つかりません');
+        const items = await response.json();
+        if (!Array.isArray(items) || items.length === 0) {
+          throw new Error('記事データが空です');
         }
 
         container.innerHTML = '';
 
         // 先頭4件を描画
         items.slice(0, 4).forEach(item => {
-          const title = item.querySelector('title')?.textContent || '';
-          const link = item.querySelector('link')?.textContent || '#';
-          const pubDateRaw = item.querySelector('pubDate')?.textContent || '';
-
-          const pubDate = new Date(pubDateRaw);
+          const pubDate = new Date(item.pubDate);
           const timeStr = isNaN(pubDate)
-            ? pubDateRaw
+            ? item.pubDate
             : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
 
           const card = document.createElement('a');
           card.className = 'news-card';
-          card.href = link;
+          card.href = item.link || '#';
           card.target = '_blank';
           card.rel = 'noopener noreferrer';
 
           card.innerHTML = `
             <div class="news-info">
-              <div class="news-title">${escapeHTML(title)}</div>
+              <div class="news-title">${escapeHTML(item.title || '')}</div>
               <div class="news-date">${escapeHTML(timeStr)}</div>
             </div>
           `;
