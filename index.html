@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="referrer" content="no-referrer">
-  <title>Yahoo news topics</title>
+  <title>Yahoo news topics - LED Ticker</title>
   <style>
     body {
-      background: #050508;
-      color: #fff;
-      font-family: 'Segoe UI', 'Meiryo', sans-serif;
+      background: #050505;
+      color: #ff8c00;
+      font-family: 'Meiryo', 'Hiragino Kaku Gothic ProN', 'MS Gothic', sans-serif;
       margin: 0;
       padding: 16px;
       width: 920px;
@@ -19,100 +19,190 @@
       box-sizing: border-box;
     }
 
+    /* 上部ステータスバー */
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #00f0ff;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
-      height: 36px;
+      border-bottom: 2px solid #331a00;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      height: 40px;
       flex-shrink: 0;
     }
 
-    .header h2 {
-      margin: 0;
-      font-size: 20px;
-      color: #00f0ff;
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .badge {
+      background: #ff7b00;
+      color: #000;
+      font-weight: 900;
+      font-size: 18px;
+      padding: 4px 12px;
+      border-radius: 4px;
       letter-spacing: 1px;
     }
 
+    .counter {
+      font-size: 22px;
+      font-weight: bold;
+      color: #ff9d00;
+      font-variant-numeric: tabular-nums;
+    }
+
     .status {
-      font-size: 14px;
-      color: #8892b0;
+      font-size: 16px;
+      color: #8a5a2b;
     }
 
-    /* 1列 × 4行レイアウト */
-    .news-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      grid-template-rows: repeat(4, 1fr);
-      gap: 12px;
+    /* 新幹線電光掲示板のメイン表示枠 */
+    .led-board {
       flex: 1;
-      overflow: hidden;
-    }
-
-    .news-card {
+      background: #0a0602;
+      /* LEDパネル風の微細なドット格子模様 */
+      background-image:
+        radial-gradient(rgba(255, 140, 0, 0.08) 1px, transparent 0);
+      background-size: 6px 6px;
+      border: 4px solid #261a0d;
+      border-radius: 12px;
+      box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.95);
+      position: relative;
       display: flex;
       align-items: center;
-      background: #0d1017;
-      border: 1px solid #1e2638;
-      border-left: 4px solid #00f0ff;
-      border-radius: 8px;
-      padding: 12px 18px;
+      overflow: hidden;
+    }
+
+    /* 流れるニュース本体（クリックで記事を開く） */
+    .ticker-link {
+      position: absolute;
+      white-space: nowrap;
       text-decoration: none;
-      color: #e6f1ff;
-      transition: border-color 0.2s, background 0.2s;
-      overflow: hidden;
+      color: #ff8c00;
+      font-size: 110px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      /* オレンジLEDの発光感 */
+      text-shadow:
+        0 0 8px rgba(255, 140, 0, 0.85),
+        0 0 20px rgba(255, 100, 0, 0.5);
+      will-change: transform;
+      cursor: pointer;
     }
 
-    .news-card:hover {
-      border-color: #00f0ff;
-      background: #131824;
+    .ticker-link:hover {
+      color: #ffb347;
     }
 
-    .news-info {
+    .ticker-date {
+      color: #ff5500;
+      font-size: 80px;
+      margin-right: 36px;
+    }
+
+    /* 下部ガイド */
+    .footer {
+      margin-top: 12px;
       display: flex;
-      flex-direction: column;
       justify-content: space-between;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .news-title {
-      font-size: 36px;
-      font-weight: bold;
-      line-height: 1.35;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .news-date {
       font-size: 14px;
-      color: #64748b;
+      color: #66421f;
+      height: 20px;
+      flex-shrink: 0;
     }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h2>YAHOO! NEWS TOPICS</h2>
+    <div class="header-left">
+      <span class="badge">YAHOO! NEWS</span>
+      <span class="counter" id="news-counter">[ -- / -- ]</span>
+    </div>
     <span class="status" id="update-status">Loading...</span>
   </div>
 
-  <div class="news-grid" id="news-container"></div>
+  <div class="led-board" id="led-board">
+    <a class="ticker-link" id="ticker-item" target="_blank" rel="noopener noreferrer">
+      ニュースデータを読み込み中...
+    </a>
+  </div>
+
+  <div class="footer">
+    <span>※ 文字をクリックすると記事を開きます（カーソルを乗せると一時停止）</span>
+    <span>AUTO LOOP: TOP 10</span>
+  </div>
 
   <script>
-    // ★ここの「ここにコピーしたURLを貼り付け」をGASのURLに書き換える
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyO6AwkRjyHI99_6D4DTsT_eQb_jsTe53W0Yte-wsdGg1kQTAkB6SDxT69dpSC6MLWA2Q/exec';
 
-    async function fetchYahooNews() {
-      const container = document.getElementById('news-container');
-      const statusEl = document.getElementById('update-status');
+    // ★スクロール速度の調整（1秒間に進むピクセル数。数値を大きくすると速くなります）
+    const SCROLL_SPEED = 220;
 
+    let newsList = [];
+    let currentIndex = 0;
+    let currentX = 0;
+    let textWidth = 0;
+    let boardWidth = 0;
+    let lastTimestamp = null;
+    let isPaused = false;
+    let animationStarted = false;
+
+    const boardEl = document.getElementById('led-board');
+    const tickerEl = document.getElementById('ticker-item');
+    const counterEl = document.getElementById('news-counter');
+    const statusEl = document.getElementById('update-status');
+
+    // マウスを乗せたら一時停止してクリックしやすくする
+    boardEl.addEventListener('mouseenter', () => { isPaused = true; });
+    boardEl.addEventListener('mouseleave', () => {
+      isPaused = false;
+      lastTimestamp = null;
+    });
+
+    function setupNextItem() {
+      if (newsList.length === 0) return;
+
+      const item = newsList[currentIndex];
+      const pubDate = new Date(item.pubDate);
+      const timeStr = isNaN(pubDate)
+        ? ''
+        : `${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
+
+      counterEl.textContent = `[ ${String(currentIndex + 1).padStart(2, '0')} / ${String(newsList.length).padStart(2, '0')} ]`;
+      tickerEl.href = item.link || '#';
+      tickerEl.innerHTML = `<span class="ticker-date">${escapeHTML(timeStr)}</span>${escapeHTML(item.title || '')}`;
+
+      // 描画後の幅を計測して右端の外側からスタートさせる
+      boardWidth = boardEl.clientWidth;
+      textWidth = tickerEl.offsetWidth;
+      currentX = boardWidth + 40;
+      tickerEl.style.transform = `translateX(${currentX}px)`;
+    }
+
+    function animate(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const deltaSeconds = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      if (!isPaused && newsList.length > 0) {
+        currentX -= SCROLL_SPEED * deltaSeconds;
+        tickerEl.style.transform = `translateX(${currentX}px)`;
+
+        // 文字の右端が画面の左端を完全に抜けたら次のニュースへ
+        if (currentX < -textWidth - 40) {
+          currentIndex = (currentIndex + 1) % newsList.length;
+          setupNextItem();
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    async function fetchYahooNews() {
       try {
         const response = await fetch(GAS_API_URL);
         if (!response.ok) {
@@ -124,40 +214,23 @@
           throw new Error('記事データが空です');
         }
 
-        container.innerHTML = '';
-
-        // 先頭4件を描画
-        items.slice(0, 4).forEach(item => {
-          const pubDate = new Date(item.pubDate);
-          const timeStr = isNaN(pubDate)
-            ? item.pubDate
-            : `${String(pubDate.getMonth() + 1).padStart(2, '0')}/${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
-
-          const card = document.createElement('a');
-          card.className = 'news-card';
-          card.href = item.link || '#';
-          card.target = '_blank';
-          card.rel = 'noopener noreferrer';
-
-          card.innerHTML = `
-            <div class="news-info">
-              <div class="news-title">${escapeHTML(item.title || '')}</div>
-              <div class="news-date">${escapeHTML(timeStr)}</div>
-            </div>
-          `;
-
-          container.appendChild(card);
-        });
+        // 最新10件を保持
+        newsList = items.slice(0, 10);
 
         const now = new Date();
         statusEl.textContent = `Updated: ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+        // 初回読み込み時のみ即座に1件目をセットしてアニメーション開始
+        if (!animationStarted) {
+          currentIndex = 0;
+          setupNextItem();
+          animationStarted = true;
+          requestAnimationFrame(animate);
+        }
       } catch (error) {
         console.error(error);
         statusEl.textContent = 'Error';
-        container.innerHTML = `<div style="color:#ff5555; font-size:16px;">
-          ${escapeHTML(error.message)}
-        </div>`;
+        tickerEl.textContent = `エラー: ${error.message}`;
       }
     }
 
@@ -172,7 +245,7 @@
     }
 
     fetchYahooNews();
-    // 30分ごとに更新（10分おきにしたい場合は 30 を 10 に変更）
+    // 30分ごとに最新ニュースへ自動差し替え
     setInterval(fetchYahooNews, 30 * 60 * 1000);
   </script>
 </body>
